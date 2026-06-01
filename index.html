@@ -4,6 +4,12 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <title>AI Chat — Pollinations</title>
+<link rel="manifest" id="pwa-manifest">
+<meta name="theme-color" content="#0d0d14">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="AI Chat">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css">
@@ -84,6 +90,10 @@ html, body { height:100%; overflow:hidden; background:var(--bg); color:var(--tex
 .theme-btn { background:none; border:1px solid var(--border2); color:var(--muted); font-size:14px; width:28px; height:28px; border-radius:7px; cursor:pointer; display:flex; align-items:center; justify-content:center; transition:all .2s; margin-left:auto; }
 .theme-btn:hover { border-color:var(--accent); color:var(--accent2); }
 .free-badge { background:rgba(34,197,94,.12); border:1px solid rgba(34,197,94,.25); color:#4ade80; font-size:10px; padding:2px 7px; border-radius:20px; }
+
+.install-btn { width:100%; margin-top:8px; padding:8px 12px; background:rgba(34,197,94,.1); border:1px solid rgba(34,197,94,.25); border-radius:10px; color:#4ade80; font-family:'Syne',sans-serif; font-size:12px; font-weight:600; cursor:pointer; display:none; align-items:center; justify-content:center; gap:7px; transition:all .2s; }
+.install-btn:hover { background:rgba(34,197,94,.2); }
+.install-btn.show { display:flex; }
 
 /* ── MOBILE OVERLAY ── */
 .sidebar-overlay { display:none; position:fixed; inset:0; background:rgba(0,0,0,.5); z-index:99; opacity:0; transition:opacity .3s; }
@@ -261,6 +271,9 @@ html, body { height:100%; overflow:hidden; background:var(--bg); color:var(--tex
       <div class="logo"><div class="logo-dot"></div>AI Chat</div>
       <button class="new-chat-btn" onclick="newChat()">
         <span style="font-size:15px">＋</span> Новый чат
+      </button>
+      <button class="install-btn" id="install-btn" onclick="installPWA()">
+        <span>📲</span> Добавить на экран
       </button>
     </div>
 
@@ -610,22 +623,23 @@ function scrollBottom() { const w=document.getElementById('messages-wrap'); setT
 function handleSend() { mode==='image' ? generateImage() : sendMessage(); }
 
 function buildContentWithAttachments(text, attachments) {
+  const hasImages = (attachments||[]).some(f => f.type.startsWith('image/'));
+  if (!hasImages) return text || '';
   const parts = [];
   if (text) parts.push({ type:'text', text });
   for (const f of (attachments||[])) {
     if (f.type.startsWith('image/')) {
       const b64 = f.dataUrl.split(',')[1];
+      // Use base64 image_url format supported by Pollinations vision
       parts.push({ type:'image_url', image_url:{ url:`data:${f.type};base64,${b64}` } });
-    } else {
-      // text files were already appended to display text on send, skip
     }
   }
-  return parts.length > 1 ? parts : (text || '');
+  return parts;
 }
 
 const SYSTEM_PROMPT = {
   role:'system',
-  content:'You are a helpful assistant. When writing code, ALWAYS write the COMPLETE, FULLY WORKING code — never truncate, never use placeholders like "// ... rest of code", "# TODO", "..." or similar shortcuts. Always finish what you start. If the code is long, still write it fully from start to finish.'
+  content:'You are a helpful assistant. You CAN see and analyze images — when user sends an image, describe and analyze it in detail. When writing code, ALWAYS write the COMPLETE, FULLY WORKING code — never truncate, never use placeholders like "// ... rest of code", "# TODO", "..." or similar shortcuts. Always finish what you start.'
 };
 
 async function sendMessage() {
@@ -802,6 +816,62 @@ document.addEventListener('touchend', e => {
   const dx = e.changedTouches[0].clientX - touchStartX;
   if (dx < -60 && document.getElementById('sidebar').classList.contains('open')) closeSidebar();
 }, {passive:true});
+
+// ── PWA ──
+// Inject manifest as blob so single HTML file works
+const manifest = {
+  name: 'AI Chat — Pollinations',
+  short_name: 'AI Chat',
+  description: 'Бесплатный AI чат без API ключа',
+  start_url: '.',
+  display: 'standalone',
+  background_color: '#0d0d14',
+  theme_color: '#7c5cfc',
+  icons: [
+    { src: 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><rect width="100" height="100" rx="20" fill="%237c5cfc"/><text y=".9em" font-size="80" x="10">✦</text></svg>', sizes: '192x192', type: 'image/svg+xml' },
+    { src: 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><rect width="100" height="100" rx="20" fill="%237c5cfc"/><text y=".9em" font-size="80" x="10">✦</text></svg>', sizes: '512x512', type: 'image/svg+xml' }
+  ]
+};
+const manifestBlob = new Blob([JSON.stringify(manifest)], {type:'application/json'});
+document.getElementById('pwa-manifest').href = URL.createObjectURL(manifestBlob);
+
+// Service worker for offline support
+if ('serviceWorker' in navigator) {
+  const swCode = `
+    self.addEventListener('install', e => { self.skipWaiting(); });
+    self.addEventListener('fetch', e => { e.respondWith(fetch(e.request).catch(() => new Response('Offline'))); });
+  `;
+  const swBlob = new Blob([swCode], {type:'application/javascript'});
+  navigator.serviceWorker.register(URL.createObjectURL(swBlob)).catch(()=>{});
+}
+
+// Install prompt
+let deferredPrompt = null;
+window.addEventListener('beforeinstallprompt', e => {
+  e.preventDefault();
+  deferredPrompt = e;
+  document.getElementById('install-btn').classList.add('show');
+});
+window.addEventListener('appinstalled', () => {
+  document.getElementById('install-btn').classList.remove('show');
+  deferredPrompt = null;
+});
+
+async function installPWA() {
+  if (deferredPrompt) {
+    deferredPrompt.prompt();
+    const { outcome } = await deferredPrompt.userChoice;
+    if (outcome === 'accepted') document.getElementById('install-btn').classList.remove('show');
+    deferredPrompt = null;
+  } else {
+    // iOS / fallback instructions
+    const isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent);
+    const msg = isIOS
+      ? 'На iOS: нажми кнопку "Поделиться" (□↑) внизу Safari → "На экран домой"'
+      : 'Открой это приложение в Chrome и нажми ⋮ → "Установить приложение"';
+    alert(msg);
+  }
+}
 </script>
 </body>
 </html>
