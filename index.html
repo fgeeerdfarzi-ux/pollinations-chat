@@ -199,9 +199,7 @@ html, body { height:100%; overflow:hidden; background:var(--bg); color:var(--tex
 .file-chip-del { background:none; border:none; color:rgba(255,80,80,.6); cursor:pointer; font-size:14px; padding:0 2px; flex-shrink:0; line-height:1; }
 .file-chip-del:hover { color:rgba(255,80,80,1); }
 
-/* uploaded image in bubble */
-.bubble-img { display:block; max-width:100%; max-height:260px; border-radius:8px; margin-top:6px; cursor:pointer; }
-.bubble-img:hover { opacity:.9; }
+
 /* uploaded file in bubble */
 .bubble-file { display:inline-flex; align-items:center; gap:7px; background:var(--bg3); border:1px solid var(--border2); border-radius:8px; padding:6px 11px; margin-top:6px; font-size:12.5px; color:var(--text2); }
 
@@ -312,11 +310,12 @@ html, body { height:100%; overflow:hidden; background:var(--bg); color:var(--tex
       <div class="file-previews" id="file-previews"></div>
       <div class="input-inner">
         <button id="attach-btn" onclick="document.getElementById('file-input').click()" title="Прикрепить файл">📎</button>
-        <input type="file" id="file-input" multiple accept="image/*,.py,.js,.ts,.html,.css,.json,.txt,.md,.csv,.xml,.yaml,.yml,.java,.cpp,.c,.cs,.go,.rs,.php,.rb,.sh,.sql,.pdf">
+        <input type="file" id="file-input" multiple accept=".py,.js,.ts,.html,.css,.json,.txt,.md,.csv,.xml,.yaml,.yml,.java,.cpp,.c,.cs,.go,.rs,.php,.rb,.sh,.sql,.pdf">
         <div class="input-wrap">
           <textarea id="user-input" rows="1" placeholder="Напиши сообщение..."></textarea>
         </div>
         <button id="send-btn" onclick="handleSend()">➤</button>
+        <button id="stop-btn" onclick="stopGeneration()" title="Остановить" style="display:none;width:42px;height:42px;border-radius:11px;background:rgba(255,80,80,.15);border:1px solid rgba(255,80,80,.35);color:#ff5f57;font-size:18px;cursor:pointer;flex-shrink:0;transition:all .2s;">⏹</button>
       </div>
       <div class="input-opts" id="img-opts">
         <select class="img-gen-select" id="img-size">
@@ -342,11 +341,12 @@ html, body { height:100%; overflow:hidden; background:var(--bg); color:var(--tex
 
 <script>
 // ── STATE ──
-let chats        = JSON.parse(localStorage.getItem('ai_chats') || '[]');
-let current      = null;
-let loading      = false;
-let mode         = 'chat';
-let pendingFiles = []; // {name, type, dataUrl, text}
+let chats          = JSON.parse(localStorage.getItem('ai_chats') || '[]');
+let current        = null;
+let loading        = false;
+let mode           = 'chat';
+let pendingFiles   = []; // {name, type, text}
+let abortController = null;
 
 // theme
 const savedTheme = localStorage.getItem('ai_theme') || 'dark';
@@ -524,15 +524,10 @@ function appendMsgEl(role, content, type, animate, attachments) {
   av.className = 'avatar ' + (role === 'user' ? 'usr' : 'ai');
   av.textContent = role === 'user' ? 'Вы' : 'AI';
   const bubble = document.createElement('div'); bubble.className = 'bubble';
-  let html = role === 'ai' ? formatMessage(content) : escHtml(content).replace(/\n/g,'<br>');
-  // show attached files below message text
+    let html = role === 'ai' ? formatMessage(content) : escHtml(content).replace(/\n/g,'<br>');
   if (attachments && attachments.length) {
     for (const f of attachments) {
-      if (f.type.startsWith('image/')) {
-        html += `<br><img class="bubble-img" src="${f.dataUrl}" alt="${escHtml(f.name)}" onclick="this.style.maxHeight=this.style.maxHeight?'':\'100%'">`;
-      } else {
-        html += `<div class="bubble-file">${fileIcon(f.type,f.name)} ${escHtml(f.name)}</div>`;
-      }
+      html += '<div class="bubble-file">' + fileIcon(f.name) + ' ' + escHtml(f.name) + '</div>';
     }
   }
   bubble.innerHTML = html;
@@ -621,33 +616,27 @@ function scrollBottom() { const w=document.getElementById('messages-wrap'); setT
 // ── SEND ──
 function handleSend() { mode==='image' ? generateImage() : sendMessage(); }
 
+function stopGeneration() {
+  if (abortController) { abortController.abort(); }
+}
+
+function setLoading(on) {
+  loading = on;
+  document.getElementById('send-btn').style.display = on ? 'none' : 'flex';
+  document.getElementById('stop-btn').style.display  = on ? 'flex' : 'none';
+  document.getElementById('send-btn').disabled = on;
+}
+
 function buildContentWithAttachments(text, attachments) {
   if (!attachments || attachments.length === 0) return text || '';
-  // For Pollinations: images → image_url parts, text files → appended as text
-  const imageAttachments = attachments.filter(f => f.type.startsWith('image/'));
-  const textAttachments  = attachments.filter(f => !f.type.startsWith('image/'));
-
-  // Build full text including file contents
   let fullText = text || '';
-  for (const f of textAttachments) {
-    if (f.text) fullText += `
-
---- Файл: ${f.name} ---
-\`\`\`
-${f.text}
-\`\`\``;
+  for (const f of attachments) {
+    if (f.text) {
+      const lang = f.name.split('.').pop().toLowerCase();
+      fullText += '\n\n--- Файл: ' + f.name + ' ---\n```' + lang + '\n' + f.text + '\n```';
+    }
   }
-
-  if (imageAttachments.length === 0) return fullText;
-
-  // Mix text + images into parts array
-  const parts = [];
-  if (fullText) parts.push({ type: 'text', text: fullText });
-  for (const f of imageAttachments) {
-    const b64 = f.dataUrl.split(',')[1];
-    parts.push({ type: 'image_url', image_url: { url: `data:${f.type};base64,${b64}` } });
-  }
-  return parts;
+  return fullText;
 }
 
 const SYSTEM_PROMPT = {
@@ -660,7 +649,7 @@ async function sendMessage() {
   const text  = input.value.trim();
   if (!text || loading) return;
   const chat = getChat(); if (!chat) return;
-  loading = true; document.getElementById('send-btn').disabled = true;
+  setLoading(true);
   input.value = ''; input.style.height = 'auto';
   const { display: displayText, attachments } = buildDisplayContent(text);
   chat.messages.push({ role:'user', content: displayText, attachments });
@@ -672,6 +661,7 @@ async function sendMessage() {
   pendingFiles = []; renderFilePreviews();
   save(); appendMsgEl('user', displayText, null, true, attachments); showTyping(); renderSidebar();
   try {
+    abortController = new AbortController();
     const msgs = [SYSTEM_PROMPT, ...chat.messages.map(m => {
       const content = m.role==='user' && m.attachments?.length
         ? buildContentWithAttachments(m.content, m.attachments)
@@ -680,6 +670,7 @@ async function sendMessage() {
     })];
     const resp = await fetch('https://text.pollinations.ai/openai', {
       method:'POST', headers:{'Content-Type':'application/json'},
+      signal: abortController.signal,
       body:JSON.stringify({ model:'openai', messages:msgs, max_tokens:4096, seed:Math.floor(Math.random()*99999) })
     });
     if (!resp.ok) throw new Error('HTTP ' + resp.status);
@@ -703,11 +694,19 @@ async function sendMessage() {
     save(); appendMsgEl('ai', reply, null, true);
   } catch(e) {
     removeTyping();
-    const err = '⚠ Ошибка: ' + e.message;
-    chat.messages.push({ role:'ai', content:err });
-    save(); appendMsgEl('ai', err, null, true);
+    if (e.name === 'AbortError') {
+      // user stopped — show partial marker
+      const stopped = '⏹ Остановлено';
+      chat.messages.push({ role:'ai', content: stopped });
+      save(); appendMsgEl('ai', stopped, null, true);
+    } else {
+      const err = '⚠ Ошибка: ' + e.message;
+      chat.messages.push({ role:'ai', content:err });
+      save(); appendMsgEl('ai', err, null, true);
+    }
   }
-  loading = false; document.getElementById('send-btn').disabled = false; input.focus();
+  abortController = null;
+  setLoading(false); input.focus();
 }
 
 async function generateImage() {
@@ -739,10 +738,9 @@ async function generateImage() {
 }
 
 // ── FILE HANDLING ──
-function fileIcon(type, name) {
-  if (type.startsWith('image/')) return '🖼';
-  const ext = name.split('.').pop().toLowerCase();
-  const icons = {py:'🐍',js:'🟨',ts:'🔷',html:'🌐',css:'🎨',json:'📋',md:'📝',txt:'📄',csv:'📊',sql:'🗄',sh:'⚙',pdf:'📕'};
+function fileIcon(name) {
+  const ext = (name||'').split('.').pop().toLowerCase();
+  const icons = {py:'🐍',js:'🟨',ts:'🔷',html:'🌐',css:'🎨',json:'📋',md:'📝',txt:'📄',csv:'📊',sql:'🗄',sh:'⚙',pdf:'📕',xml:'📰',yaml:'⚙',yml:'⚙',java:'☕',cpp:'⚙',c:'⚙',cs:'🔷',go:'🐹',rs:'🦀',php:'🐘',rb:'💎'};
   return icons[ext] || '📎';
 }
 
@@ -752,11 +750,7 @@ function renderFilePreviews() {
   pendingFiles.forEach((f, i) => {
     const chip = document.createElement('div');
     chip.className = 'file-chip';
-    if (f.type.startsWith('image/')) {
-      chip.innerHTML = `<img class="file-chip-img" src="${f.dataUrl}" alt="${escHtml(f.name)}"><span class="file-chip-name">${escHtml(f.name)}</span><button class="file-chip-del" onclick="removeFile(${i})">✕</button>`;
-    } else {
-      chip.innerHTML = `<span class="file-chip-icon">${fileIcon(f.type, f.name)}</span><span class="file-chip-name">${escHtml(f.name)}</span><button class="file-chip-del" onclick="removeFile(${i})">✕</button>`;
-    }
+    chip.innerHTML = `<span class="file-chip-icon">${fileIcon(f.name)}</span><span class="file-chip-name">${escHtml(f.name)}</span><button class="file-chip-del" onclick="removeFile(${i})">✕</button>`;
     container.appendChild(chip);
   });
 }
@@ -769,18 +763,13 @@ function removeFile(i) {
 document.getElementById('file-input').addEventListener('change', async function() {
   const files = Array.from(this.files);
   for (const file of files) {
-    const dataUrl = await new Promise(res => {
-      const r = new FileReader(); r.onload = () => res(r.result); r.readAsDataURL(file);
-    });
-    let text = null;
-    if (!file.type.startsWith('image/')) {
-      try {
-        text = await new Promise(res => {
-          const r = new FileReader(); r.onload = () => res(r.result); r.readAsText(file);
-        });
-      } catch(e) { text = null; }
-    }
-    pendingFiles.push({ name: file.name, type: file.type, dataUrl, text });
+    let text = '';
+    try {
+      text = await new Promise(res => {
+        const r = new FileReader(); r.onload = () => res(r.result); r.readAsText(file);
+      });
+    } catch(e) { text = ''; }
+    pendingFiles.push({ name: file.name, type: file.type, text });
   }
   this.value = '';
   renderFilePreviews();
@@ -805,7 +794,7 @@ function buildUserContent(text) {
 // Build display string for saving to chat history
 function buildDisplayContent(text) {
   if (pendingFiles.length === 0) return { display: text, attachments: [] };
-  return { display: text, attachments: pendingFiles.map(f => ({ name:f.name, type:f.type, dataUrl:f.dataUrl, text:f.text })) };
+  return { display: text, attachments: pendingFiles.map(f => ({ name:f.name, type:f.type, text:f.text })) };
 }
 
 function quickSend(t) { document.getElementById('user-input').value = t; sendMessage(); }
