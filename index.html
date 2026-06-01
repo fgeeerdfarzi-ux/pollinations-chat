@@ -298,12 +298,10 @@ html, body { height:100%; overflow:hidden; background:var(--bg); color:var(--tex
 </head>
 <body>
 
-<!-- mobile overlay -->
 <div class="sidebar-overlay" id="overlay" onclick="closeSidebar()"></div>
 
 <div class="app">
 
-  <!-- SIDEBAR -->
   <aside class="sidebar" id="sidebar">
     <div class="sidebar-header">
       <div class="logo"><div class="logo-dot"></div>AI Chat</div>
@@ -332,7 +330,6 @@ html, body { height:100%; overflow:hidden; background:var(--bg); color:var(--tex
     </div>
   </aside>
 
-  <!-- MAIN -->
   <main class="main">
     <div class="topbar">
       <button class="menu-btn" onclick="openSidebar()" title="Меню">☰</button>
@@ -386,7 +383,6 @@ html, body { height:100%; overflow:hidden; background:var(--bg); color:var(--tex
     </div>
   </main>
 
-  <!-- PREVIEW PANEL -->
   <div class="preview-panel" id="preview-panel">
     <div class="preview-header">
       <span class="preview-title" id="preview-title">preview.html</span>
@@ -850,22 +846,35 @@ async function sendMessage() {
     const reader = resp.body.getReader();
     const decoder = new TextDecoder();
     let reply = '';
+    let buffer = '';
 
     while (true) {
       const { done, value } = await reader.read();
       if (done) break;
-      const chunk = decoder.decode(value, { stream: true });
+      
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split('\n');
+      buffer = lines.pop(); // Оставляем последний (неполный) кусок в буфере
+
       // Parse SSE lines
-      for (const line of chunk.split('\n')) {
-        if (!line.startsWith('data:')) continue;
-        const data = line.slice(5).trim();
-        if (data === '[DONE]') break;
+      for (const line of lines) {
+        if (!line.trim().startsWith('data:')) continue;
+        const data = line.trim().slice(5).trim();
+        if (data === '[DONE]') continue; 
+        
         try {
           const json = JSON.parse(data);
           const delta = json.choices?.[0]?.delta?.content || '';
           if (delta) {
             reply += delta;
-            streamBubble.innerHTML = formatMessage(reply);
+            
+            // Фикс отображения HTML: временно закрываем кавычки блока кода на лету
+            let displayReply = reply;
+            if ((displayReply.match(/```/g) || []).length % 2 !== 0) {
+              displayReply += '\n```';
+            }
+            
+            streamBubble.innerHTML = formatMessage(displayReply);
             scrollBottom();
           }
         } catch(e) {}
