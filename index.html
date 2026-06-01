@@ -10,10 +10,10 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="AI Chat">
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css">
-<script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+<link rel="preconnect" href="[https://fonts.googleapis.com](https://fonts.googleapis.com)">
+<link href="[https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700&family=JetBrains+Mono:wght@400;500&display=swap](https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700&family=JetBrains+Mono:wght@400;500&display=swap)" rel="stylesheet">
+<link rel="stylesheet" href="[https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css](https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css)">
+<script src="[https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js](https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js)"></script>
 <style>
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -203,7 +203,6 @@ html, body { height:100%; overflow:hidden; background:var(--bg); color:var(--tex
 .file-chip-del { background:none; border:none; color:rgba(255,80,80,.6); cursor:pointer; font-size:14px; padding:0 2px; flex-shrink:0; line-height:1; }
 .file-chip-del:hover { color:rgba(255,80,80,1); }
 
-
 /* uploaded file in bubble */
 .bubble-file { display:inline-flex; align-items:center; gap:7px; background:var(--bg3); border:1px solid var(--border2); border-radius:8px; padding:6px 11px; margin-top:6px; font-size:12.5px; color:var(--text2); }
 
@@ -245,7 +244,7 @@ html, body { height:100%; overflow:hidden; background:var(--bg); color:var(--tex
   .img-msg { max-width: 100%; }
 
   .input-area { padding: 8px 10px 12px; }
-  #user-input { font-size: 16px; /* prevents iOS zoom on focus */ padding: 10px 12px; }
+  #user-input { font-size: 16px; padding: 10px 12px; }
   #send-btn { width: 40px; height: 40px; }
 
   .empty-title { font-size: 17px; }
@@ -301,7 +300,6 @@ html, body { height:100%; overflow:hidden; background:var(--bg); color:var(--tex
 <div class="sidebar-overlay" id="overlay" onclick="closeSidebar()"></div>
 
 <div class="app">
-
   <aside class="sidebar" id="sidebar">
     <div class="sidebar-header">
       <div class="logo"><div class="logo-dot"></div>AI Chat</div>
@@ -379,7 +377,7 @@ html, body { height:100%; overflow:hidden; background:var(--bg); color:var(--tex
           <option value="3d render">3D рендер</option>
         </select>
       </div>
-      <div class="input-hint" id="input-hint">Этот ИИ лучше работает не для программирования</div>
+      <div class="input-hint" id="input-hint">Enter — отправить · Shift+Enter — перенос</div>
     </div>
   </main>
 
@@ -398,16 +396,14 @@ html, body { height:100%; overflow:hidden; background:var(--bg); color:var(--tex
 </div>
 
 <script>
-// ── STATE ──
 let chats          = JSON.parse(localStorage.getItem('ai_chats') || '[]');
 let current        = null;
 let loading        = false;
 let mode           = 'chat';
 let currentModel   = localStorage.getItem('ai_model') || 'gemini';
-let pendingFiles   = []; // {name, type, text}
+let pendingFiles   = [];
 let abortController = null;
 
-// theme
 const savedTheme = localStorage.getItem('ai_theme') || 'dark';
 if (savedTheme === 'light') { document.body.classList.add('light'); document.getElementById('theme-btn').textContent = '☀️'; }
 
@@ -422,10 +418,8 @@ function setModel(model) {
   localStorage.setItem('ai_model', model);
 }
 
-// restore saved model
 document.getElementById('model-select-top').value = currentModel;
 
-// ── MOBILE SIDEBAR ──
 function openSidebar() {
   document.getElementById('sidebar').classList.add('open');
   const ov = document.getElementById('overlay');
@@ -445,19 +439,13 @@ function setMode(m) {
   document.getElementById('mode-image').classList.toggle('active', m === 'image');
   const opts = document.getElementById('img-opts');
   opts.classList.toggle('show', m === 'image');
-  document.getElementById('user-input').placeholder = m === 'image'
-    ? 'Опиши картинку (желательно на английском)...'
-    : 'Напиши сообщение...';
-  document.getElementById('input-hint').textContent = m === 'image'
-    ? 'Описание лучше на английском для точного результата'
-    : 'Enter — отправить · Shift+Enter — перенос';
+  document.getElementById('user-input').placeholder = m === 'image' ? 'Опиши картинку (желательно на английском)...' : 'Напиши сообщение...';
+  document.getElementById('input-hint').textContent = m === 'image' ? 'Описание лучше на английском для точного результата' : 'Enter — отправить · Shift+Enter — перенос';
 }
 
-// ── INIT ──
 if (chats.length === 0) newChat();
 else { loadChat(chats[0].id); renderSidebar(); }
 
-// ── CHAT MANAGEMENT ──
 function newChat() {
   const id = 'chat_' + Date.now();
   chats.unshift({ id, title:'Новый чат', messages:[] });
@@ -511,7 +499,6 @@ function startRename(id, e) {
   });
 }
 
-// ── SIDEBAR ──
 function renderSidebar() {
   const query  = (document.getElementById('search-input').value || '').toLowerCase().trim();
   const list   = document.getElementById('chats-list');
@@ -542,7 +529,6 @@ function renderSidebar() {
 }
 function escRegex(s) { return s.replace(/[.*+?^${}()|[\]\\]/g,'\\$&'); }
 
-// ── MESSAGES ──
 function renderMessages() {
   const chat = getChat();
   const el   = document.getElementById('messages');
@@ -591,7 +577,7 @@ function appendMsgEl(role, content, type, animate, attachments) {
   av.className = 'avatar ' + (role === 'user' ? 'usr' : 'ai');
   av.textContent = role === 'user' ? 'Вы' : 'AI';
   const bubble = document.createElement('div'); bubble.className = 'bubble';
-    let html = role === 'ai' ? formatMessage(content) : escHtml(content).replace(/\n/g,'<br>');
+  let html = role === 'ai' ? formatMessage(content) : escHtml(content).replace(/\n/g,'<br>');
   if (attachments && attachments.length) {
     for (const f of attachments) {
       html += '<div class="bubble-file">' + fileIcon(f.name) + ' ' + escHtml(f.name) + '</div>';
@@ -600,14 +586,12 @@ function appendMsgEl(role, content, type, animate, attachments) {
   bubble.innerHTML = html;
   wrap.appendChild(av); wrap.appendChild(bubble); el.appendChild(wrap);
 
-  // Robust highlight: retry up to 3 times with increasing delay for large code blocks
   function tryHighlight(el, attempt) {
     const blocks = el.querySelectorAll('pre code:not(.hljs)');
     if (blocks.length === 0) return;
     blocks.forEach(b => {
       try { hljs.highlightElement(b); } catch(e) {}
     });
-    // if some still not highlighted, retry
     const remaining = el.querySelectorAll('pre code:not(.hljs)');
     if (remaining.length > 0 && attempt < 3) {
       setTimeout(() => tryHighlight(el, attempt + 1), 120 * attempt + 80);
@@ -615,7 +599,6 @@ function appendMsgEl(role, content, type, animate, attachments) {
   }
   requestAnimationFrame(() => tryHighlight(wrap, 1));
 
-  // ── Message action buttons (copy, edit for user) ──
   const actions = document.createElement('div');
   actions.className = 'msg-actions';
   if (role === 'user') {
@@ -634,7 +617,6 @@ function appendMsgEl(role, content, type, animate, attachments) {
   const copyBtn = document.createElement('button');
   copyBtn.className = 'msg-action-btn'; copyBtn.textContent = '⎘ копировать';
   copyBtn.onclick = () => {
-    // get plain text from bubble
     const text = bubble.innerText || bubble.textContent;
     navigator.clipboard.writeText(text).then(() => {
       copyBtn.textContent = '✓ скопировано';
@@ -643,7 +625,7 @@ function appendMsgEl(role, content, type, animate, attachments) {
   };
   actions.appendChild(copyBtn);
   wrap.appendChild(actions);
-  // ── Edit button ──
+
   wrap.querySelectorAll('.code-edit-btn').forEach(btn => {
     btn.onclick = () => {
       const block = btn.closest('.code-block');
@@ -654,7 +636,6 @@ function appendMsgEl(role, content, type, animate, attachments) {
         pre.focus();
         btn.classList.add('editing');
         btn.textContent = '✓ готово';
-        // add preview button if HTML
         const lang = block.querySelector('.code-lang').textContent.trim();
         if ((lang === 'html' || lang === 'HTML') && !block.querySelector('.code-preview-btn')) {
           const pb = document.createElement('button');
@@ -666,14 +647,12 @@ function appendMsgEl(role, content, type, animate, attachments) {
         pre.contentEditable = 'false';
         btn.classList.remove('editing');
         btn.textContent = '✏ редактировать';
-        // re-highlight
         const code = pre.querySelector('code');
         if (code) { code.removeAttribute('data-highlighted'); code.classList.remove('hljs'); hljs.highlightElement(code); }
       }
     };
   });
 
-  // ── Auto-show preview for HTML blocks ──
   wrap.querySelectorAll('.code-block').forEach(block => {
     const lang = (block.querySelector('.code-lang').textContent || '').trim().toLowerCase();
     if (lang === 'html') {
@@ -683,7 +662,6 @@ function appendMsgEl(role, content, type, animate, attachments) {
         pb.className = 'code-edit-btn code-preview-btn'; pb.textContent = '▶ превью';
         pb.onclick = () => openPreview(code.innerText || code.textContent, 'html');
         block.querySelector('.code-btns').prepend(pb);
-        // auto-open preview
         setTimeout(() => openPreview(code.innerText || code.textContent, 'html'), 100);
       }
     }
@@ -711,9 +689,11 @@ function appendMsgEl(role, content, type, animate, attachments) {
   scrollBottom();
 }
 
-// ── FORMAT ──
+/* ── НОВАЯ, УСОВЕРШЕНСТВОВАННАЯ ФУНКЦИЯ ФОРМАТИРОВАНИЯ ── */
 function formatMessage(text) {
   const blocks = [];
+  
+  // 1. Прячем большие блоки кода
   text = text.replace(/```(\w*)\n?([\s\S]*?)```/g, (_, lang, code) => {
     const label = lang || 'code';
     const html  = `<div class="code-block">
@@ -731,10 +711,22 @@ function formatMessage(text) {
     blocks.push(html);
     return '\x00B' + (blocks.length-1) + '\x00';
   });
-  text = text.replace(/`([^`]+)`/g, '<code>$1</code>');
+  
+  // 2. Прячем мелкий код
+  text = text.replace(/`([^`]+)`/g, (_, code) => {
+    blocks.push(`<code>${escHtml(code)}</code>`);
+    return '\x00B' + (blocks.length-1) + '\x00';
+  });
+
+  // 3. САМОЕ ГЛАВНОЕ: Экранируем весь оставшийся текст! Это запретит браузеру создавать кнопки вне кода.
+  text = escHtml(text);
+
+  // 4. Добавляем жирный шрифт, курсив и переносы строк
   text = text.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
   text = text.replace(/\*(.+?)\*/g, '<em>$1</em>');
   text = text.replace(/\n/g, '<br>');
+
+  // 5. Возвращаем блоки кода обратно
   text = text.replace(/\x00B(\d+)\x00/g, (_, i) => blocks[+i]);
   return text;
 }
@@ -745,7 +737,6 @@ function langToExt(lang) {
   return m[(lang||'').toLowerCase()] || 'txt';
 }
 
-// ── TYPING ──
 function showTyping() {
   const el = document.getElementById('messages');
   const es = el.querySelector('.empty-state'); if (es) es.remove();
@@ -756,7 +747,6 @@ function showTyping() {
 function removeTyping() { const t=document.getElementById('typing'); if(t) t.remove(); }
 function scrollBottom() { const w=document.getElementById('messages-wrap'); setTimeout(()=>w.scrollTop=w.scrollHeight,30); }
 
-// ── SEND ──
 function handleSend() { mode==='image' ? generateImage() : sendMessage(); }
 
 function stopGeneration() {
@@ -811,13 +801,12 @@ async function sendMessage() {
         : m.content;
       return { role:m.role==='ai'?'assistant':m.role, content };
     })];
-    // Choose endpoint and model string
     const modelMap = {
-      'openai':           { url:'https://text.pollinations.ai/openai',      model:'openai' },
-      'gemini':           { url:'https://text.pollinations.ai/openai',      model:'gemini' },
-      'gemini-thinking':  { url:'https://text.pollinations.ai/openai',      model:'gemini-thinking' },
-      'mistral':          { url:'https://text.pollinations.ai/openai',      model:'mistral' },
-      'llama':            { url:'https://text.pollinations.ai/openai',      model:'llama' },
+      'openai':           { url:'[https://text.pollinations.ai/openai](https://text.pollinations.ai/openai)',      model:'openai' },
+      'gemini':           { url:'[https://text.pollinations.ai/openai](https://text.pollinations.ai/openai)',      model:'gemini' },
+      'gemini-thinking':  { url:'[https://text.pollinations.ai/openai](https://text.pollinations.ai/openai)',      model:'gemini-thinking' },
+      'mistral':          { url:'[https://text.pollinations.ai/openai](https://text.pollinations.ai/openai)',      model:'mistral' },
+      'llama':            { url:'[https://text.pollinations.ai/openai](https://text.pollinations.ai/openai)',      model:'llama' },
     };
     const { url: apiUrl, model: modelStr } = modelMap[currentModel] || modelMap['gemini'];
 
@@ -828,9 +817,7 @@ async function sendMessage() {
     });
     if (!resp.ok) throw new Error('HTTP ' + resp.status);
 
-    // ── STREAMING ──
     removeTyping();
-    // Create streaming bubble
     const streamWrap = document.createElement('div');
     streamWrap.className = 'msg ai'; streamWrap.style.animation = 'none';
     const streamAv = document.createElement('div'); streamAv.className = 'avatar ai';
@@ -854,9 +841,8 @@ async function sendMessage() {
       
       buffer += decoder.decode(value, { stream: true });
       const lines = buffer.split('\n');
-      buffer = lines.pop(); // Оставляем последний (неполный) кусок в буфере
+      buffer = lines.pop(); 
 
-      // Parse SSE lines
       for (const line of lines) {
         if (!line.trim().startsWith('data:')) continue;
         const data = line.trim().slice(5).trim();
@@ -868,7 +854,6 @@ async function sendMessage() {
           if (delta) {
             reply += delta;
             
-            // Фикс отображения HTML: временно закрываем кавычки блока кода на лету
             let displayReply = reply;
             if ((displayReply.match(/```/g) || []).length % 2 !== 0) {
               displayReply += '\n```';
@@ -881,18 +866,30 @@ async function sendMessage() {
       }
     }
 
-    // Final render with full formatting + highlight
+    // ВАЖНЫЙ ФИКС: Если ИИ оборвался (достиг лимита слов), насильно закрываем блок кода в финальном ответе!
+    if ((reply.match(/```/g) || []).length % 2 !== 0) {
+      reply += '\n```';
+    }
+
     streamBubble.classList.remove('stream-cursor');
     streamBubble.innerHTML = formatMessage(reply);
-    requestAnimationFrame(() => tryHighlight(streamBubble, 1));
+    
+    // Robust highlight again
+    function tryHighlightStream(el, attempt) {
+      const blocks = el.querySelectorAll('pre code:not(.hljs)');
+      if (blocks.length === 0) return;
+      blocks.forEach(b => { try { hljs.highlightElement(b); } catch(e) {} });
+      if (el.querySelectorAll('pre code:not(.hljs)').length > 0 && attempt < 3) {
+        setTimeout(() => tryHighlightStream(el, attempt + 1), 120 * attempt + 80);
+      }
+    }
+    requestAnimationFrame(() => tryHighlightStream(streamWrap, 1));
 
-    // Add action buttons
     const actions = document.createElement('div'); actions.className = 'msg-actions';
     const copyBtn = document.createElement('button'); copyBtn.className = 'msg-action-btn'; copyBtn.textContent = '⎘ копировать';
     copyBtn.onclick = () => { navigator.clipboard.writeText(reply).then(() => { copyBtn.textContent = '✓ скопировано'; setTimeout(() => copyBtn.textContent = '⎘ копировать', 1800); }); };
     actions.appendChild(copyBtn); streamWrap.appendChild(actions);
 
-    // Wire code block buttons in streamed message
     streamWrap.querySelectorAll('.code-copy').forEach(btn => {
       btn.onclick = () => { navigator.clipboard.writeText(btn.closest('.code-block').querySelector('code').innerText).then(() => { btn.textContent = '✓'; setTimeout(() => btn.textContent = '⎘ копировать', 1800); }); };
     });
@@ -902,7 +899,6 @@ async function sendMessage() {
     streamWrap.querySelectorAll('.code-edit-btn').forEach(btn => {
       btn.onclick = () => { const block=btn.closest('.code-block'); const pre=block.querySelector('pre'); const isEditing=btn.classList.contains('editing'); if(!isEditing){pre.contentEditable='true';pre.focus();btn.classList.add('editing');btn.textContent='✓ готово';}else{pre.contentEditable='false';btn.classList.remove('editing');btn.textContent='✏ редактировать';const code=pre.querySelector('code');if(code){code.removeAttribute('data-highlighted');code.classList.remove('hljs');hljs.highlightElement(code);}}};
     });
-    // Auto-preview HTML
     streamWrap.querySelectorAll('.code-block').forEach(block => {
       const lang = (block.querySelector('.code-lang').textContent||'').trim().toLowerCase();
       if (lang === 'html') {
@@ -921,7 +917,6 @@ async function sendMessage() {
   } catch(e) {
     removeTyping();
     if (e.name === 'AbortError') {
-      // user stopped — show partial marker
       const stopped = '⏹ Остановлено';
       chat.messages.push({ role:'ai', content: stopped });
       save(); appendMsgEl('ai', stopped, null, true);
@@ -963,7 +958,6 @@ async function generateImage() {
   loading = false; document.getElementById('send-btn').disabled = false; input.focus();
 }
 
-// ── FILE HANDLING ──
 function fileIcon(name) {
   const ext = (name||'').split('.').pop().toLowerCase();
   const icons = {py:'🐍',js:'🟨',ts:'🔷',html:'🌐',css:'🎨',json:'📋',md:'📝',txt:'📄',csv:'📊',sql:'🗄',sh:'⚙',pdf:'📕',xml:'📰',yaml:'⚙',yml:'⚙',java:'☕',cpp:'⚙',c:'⚙',cs:'🔷',go:'🐹',rs:'🦀',php:'🐘',rb:'💎'};
@@ -1001,7 +995,6 @@ document.getElementById('file-input').addEventListener('change', async function(
   renderFilePreviews();
 });
 
-// Build content array for API (images as base64, text files as text)
 function buildUserContent(text) {
   if (pendingFiles.length === 0) return text;
   const parts = [];
@@ -1017,13 +1010,11 @@ function buildUserContent(text) {
   return parts.length === 1 && typeof parts[0] === 'object' && parts[0].type === 'text' ? parts[0].text : parts;
 }
 
-// Build display string for saving to chat history
 function buildDisplayContent(text) {
   if (pendingFiles.length === 0) return { display: text, attachments: [] };
   return { display: text, attachments: pendingFiles.map(f => ({ name:f.name, type:f.type, text:f.text })) };
 }
 
-// ── PREVIEW PANEL ──
 let previewCurrentCode = '';
 
 function openPreview(htmlCode, lang) {
@@ -1031,10 +1022,8 @@ function openPreview(htmlCode, lang) {
   const panel = document.getElementById('preview-panel');
   document.getElementById('preview-title').textContent = lang === 'html' ? 'preview.html' : lang;
   panel.classList.add('open');
-  // Set iframe content
   const iframe = document.getElementById('preview-iframe');
   iframe.srcdoc = htmlCode;
-  // Set code view
   document.getElementById('preview-code').textContent = htmlCode;
   switchPreviewTab('preview');
 }
@@ -1052,10 +1041,8 @@ function switchPreviewTab(tab) {
 
 function quickSend(t) { document.getElementById('user-input').value = t; sendMessage(); }
 
-// ── INPUT EVENTS ──
 const inputEl = document.getElementById('user-input');
 inputEl.addEventListener('keydown', e => {
-  // on mobile don't intercept Enter (let user use newlines naturally)
   const isMobile = window.innerWidth <= 640;
   if (e.key === 'Enter' && !e.shiftKey && !isMobile) { e.preventDefault(); handleSend(); }
 });
@@ -1064,7 +1051,6 @@ inputEl.addEventListener('input', () => {
   inputEl.style.height = Math.min(inputEl.scrollHeight, 140) + 'px';
 });
 
-// swipe to close sidebar on mobile
 let touchStartX = 0;
 document.addEventListener('touchstart', e => { touchStartX = e.touches[0].clientX; }, {passive:true});
 document.addEventListener('touchend', e => {
@@ -1072,8 +1058,6 @@ document.addEventListener('touchend', e => {
   if (dx < -60 && document.getElementById('sidebar').classList.contains('open')) closeSidebar();
 }, {passive:true});
 
-// ── PWA ──
-// Inject manifest as blob so single HTML file works
 const manifest = {
   name: 'AI Chat — Pollinations',
   short_name: 'AI Chat',
@@ -1083,14 +1067,13 @@ const manifest = {
   background_color: '#0d0d14',
   theme_color: '#7c5cfc',
   icons: [
-    { src: 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><rect width="100" height="100" rx="20" fill="%237c5cfc"/><text y=".9em" font-size="80" x="10">✦</text></svg>', sizes: '192x192', type: 'image/svg+xml' },
-    { src: 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><rect width="100" height="100" rx="20" fill="%237c5cfc"/><text y=".9em" font-size="80" x="10">✦</text></svg>', sizes: '512x512', type: 'image/svg+xml' }
+    { src: 'data:image/svg+xml,<svg xmlns="[http://www.w3.org/2000/svg](http://www.w3.org/2000/svg)" viewBox="0 0 100 100"><rect width="100" height="100" rx="20" fill="%237c5cfc"/><text y=".9em" font-size="80" x="10">✦</text></svg>', sizes: '192x192', type: 'image/svg+xml' },
+    { src: 'data:image/svg+xml,<svg xmlns="[http://www.w3.org/2000/svg](http://www.w3.org/2000/svg)" viewBox="0 0 100 100"><rect width="100" height="100" rx="20" fill="%237c5cfc"/><text y=".9em" font-size="80" x="10">✦</text></svg>', sizes: '512x512', type: 'image/svg+xml' }
   ]
 };
 const manifestBlob = new Blob([JSON.stringify(manifest)], {type:'application/json'});
 document.getElementById('pwa-manifest').href = URL.createObjectURL(manifestBlob);
 
-// Service worker for offline support
 if ('serviceWorker' in navigator) {
   const swCode = `
     self.addEventListener('install', e => { self.skipWaiting(); });
@@ -1100,7 +1083,6 @@ if ('serviceWorker' in navigator) {
   navigator.serviceWorker.register(URL.createObjectURL(swBlob)).catch(()=>{});
 }
 
-// Install prompt
 let deferredPrompt = null;
 window.addEventListener('beforeinstallprompt', e => {
   e.preventDefault();
@@ -1116,13 +1098,11 @@ window.addEventListener('appinstalled', () => {
 
 async function installPWA() {
   if (deferredPrompt) {
-    // Chrome/Android — native prompt
     deferredPrompt.prompt();
     const { outcome } = await deferredPrompt.userChoice;
     deferredPrompt = null;
     return;
   }
-  // Show modal with instructions
   showInstallModal();
 }
 
