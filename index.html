@@ -253,6 +253,42 @@ html, body { height:100%; overflow:hidden; background:var(--bg); color:var(--tex
   .messages-inner { padding: 0 16px; }
   .bubble { max-width: 84%; }
 }
+
+/* ── PREVIEW PANEL ── */
+.preview-panel { width:0; background:var(--bg2); border-left:1px solid var(--border); display:flex; flex-direction:column; overflow:hidden; transition:width .3s ease; flex-shrink:0; }
+.preview-panel.open { width:45%; min-width:300px; }
+.preview-header { padding:10px 14px; border-bottom:1px solid var(--border); display:flex; align-items:center; gap:8px; flex-shrink:0; background:var(--topbar-bg); }
+.preview-title { font-size:12px; font-weight:600; color:var(--text2); flex:1; font-family:'JetBrains Mono',monospace; }
+.preview-close { background:none; border:none; color:var(--muted); cursor:pointer; font-size:16px; padding:2px 6px; border-radius:4px; transition:color .15s; }
+.preview-close:hover { color:var(--text); }
+.preview-iframe { flex:1; width:100%; border:none; background:#fff; }
+.preview-tabs { display:flex; gap:4px; padding:8px 12px; border-bottom:1px solid var(--border); background:var(--bg3); flex-shrink:0; }
+.preview-tab { padding:4px 12px; border-radius:6px; border:1px solid var(--border2); background:transparent; color:var(--muted); font-family:'JetBrains Mono',monospace; font-size:11px; cursor:pointer; transition:all .2s; }
+.preview-tab.active { background:var(--accent); color:#fff; border-color:var(--accent); }
+
+/* ── COPY MSG BUTTON ── */
+.msg-actions { display:flex; gap:4px; margin-top:5px; opacity:0; transition:opacity .2s; }
+.msg:hover .msg-actions { opacity:1; }
+.msg-action-btn { background:none; border:1px solid var(--border2); color:var(--muted); font-size:10px; font-family:'JetBrains Mono',monospace; padding:2px 8px; border-radius:5px; cursor:pointer; transition:all .15s; white-space:nowrap; }
+.msg-action-btn:hover { background:var(--bg3); color:var(--text2); }
+
+/* ── EDITABLE CODE ── */
+.code-block pre[contenteditable] { outline:none; border:1px solid rgba(124,92,252,.4) !important; }
+.code-edit-btn { background:none; border:1px solid rgba(255,255,255,.12); color:rgba(255,255,255,.4); font-family:'JetBrains Mono',monospace; font-size:10px; padding:3px 8px; border-radius:5px; cursor:pointer; transition:all .2s; white-space:nowrap; }
+.code-edit-btn:hover { background:rgba(255,165,0,.1); border-color:rgba(255,165,0,.4); color:orange; }
+.code-edit-btn.editing { background:rgba(124,92,252,.15); border-color:rgba(124,92,252,.5); color:var(--accent2); }
+
+/* ── STREAMING CURSOR ── */
+.stream-cursor::after { content:'▋'; animation:blink .7s infinite; color:var(--accent2); }
+@keyframes blink{0%,100%{opacity:1}50%{opacity:0}}
+
+@media (max-width: 640px) {
+  .preview-panel.open { position:fixed; inset:0; width:100% !important; z-index:200; }
+  .msg-actions { opacity:1; }
+}
+@media (max-width: 900px) {
+  .preview-panel.open { width:50%; }
+}
 </style>
 </head>
 <body>
@@ -337,6 +373,20 @@ html, body { height:100%; overflow:hidden; background:var(--bg); color:var(--tex
       <div class="input-hint" id="input-hint">Enter — отправить · Shift+Enter — перенос</div>
     </div>
   </main>
+
+  <!-- PREVIEW PANEL -->
+  <div class="preview-panel" id="preview-panel">
+    <div class="preview-header">
+      <span class="preview-title" id="preview-title">preview.html</span>
+      <div class="preview-tabs">
+        <button class="preview-tab active" id="ptab-preview" onclick="switchPreviewTab('preview')">▶ Превью</button>
+        <button class="preview-tab" id="ptab-code" onclick="switchPreviewTab('code')">{ } Код</button>
+      </div>
+      <button class="preview-close" onclick="closePreview()" title="Закрыть">✕</button>
+    </div>
+    <iframe class="preview-iframe" id="preview-iframe" sandbox="allow-scripts allow-same-origin"></iframe>
+    <pre id="preview-code" style="display:none;flex:1;overflow:auto;padding:14px;font-size:12px;font-family:'JetBrains Mono',monospace;color:var(--text);background:var(--code-bg);margin:0;"></pre>
+  </div>
 </div>
 
 <script>
@@ -547,6 +597,81 @@ function appendMsgEl(role, content, type, animate, attachments) {
     }
   }
   requestAnimationFrame(() => tryHighlight(wrap, 1));
+
+  // ── Message action buttons (copy, edit for user) ──
+  const actions = document.createElement('div');
+  actions.className = 'msg-actions';
+  if (role === 'user') {
+    const editBtn = document.createElement('button');
+    editBtn.className = 'msg-action-btn'; editBtn.textContent = '✏ изменить';
+    editBtn.onclick = () => {
+      const old = bubble.querySelector('span') ? bubble.querySelector('span').textContent : bubble.innerText;
+      document.getElementById('user-input').value = old;
+      document.getElementById('user-input').focus();
+      wrap.remove();
+      const chat = getChat();
+      if (chat) { chat.messages = chat.messages.slice(0, -1); save(); }
+    };
+    actions.appendChild(editBtn);
+  }
+  const copyBtn = document.createElement('button');
+  copyBtn.className = 'msg-action-btn'; copyBtn.textContent = '⎘ копировать';
+  copyBtn.onclick = () => {
+    // get plain text from bubble
+    const text = bubble.innerText || bubble.textContent;
+    navigator.clipboard.writeText(text).then(() => {
+      copyBtn.textContent = '✓ скопировано';
+      setTimeout(() => copyBtn.textContent = '⎘ копировать', 1800);
+    });
+  };
+  actions.appendChild(copyBtn);
+  wrap.appendChild(actions);
+  // ── Edit button ──
+  wrap.querySelectorAll('.code-edit-btn').forEach(btn => {
+    btn.onclick = () => {
+      const block = btn.closest('.code-block');
+      const pre   = block.querySelector('pre');
+      const isEditing = btn.classList.contains('editing');
+      if (!isEditing) {
+        pre.contentEditable = 'true';
+        pre.focus();
+        btn.classList.add('editing');
+        btn.textContent = '✓ готово';
+        // add preview button if HTML
+        const lang = block.querySelector('.code-lang').textContent.trim();
+        if ((lang === 'html' || lang === 'HTML') && !block.querySelector('.code-preview-btn')) {
+          const pb = document.createElement('button');
+          pb.className = 'code-edit-btn'; pb.textContent = '▶ превью';
+          pb.onclick = () => openPreview(pre.innerText || pre.textContent, block.querySelector('.code-lang').textContent.trim());
+          btn.parentNode.insertBefore(pb, btn);
+        }
+      } else {
+        pre.contentEditable = 'false';
+        btn.classList.remove('editing');
+        btn.textContent = '✏ редактировать';
+        // re-highlight
+        const code = pre.querySelector('code');
+        if (code) { code.removeAttribute('data-highlighted'); code.classList.remove('hljs'); hljs.highlightElement(code); }
+      }
+    };
+  });
+
+  // ── Auto-show preview for HTML blocks ──
+  wrap.querySelectorAll('.code-block').forEach(block => {
+    const lang = (block.querySelector('.code-lang').textContent || '').trim().toLowerCase();
+    if (lang === 'html') {
+      const code = block.querySelector('code');
+      if (code && !block.querySelector('.code-preview-btn')) {
+        const pb = document.createElement('button');
+        pb.className = 'code-edit-btn code-preview-btn'; pb.textContent = '▶ превью';
+        pb.onclick = () => openPreview(code.innerText || code.textContent, 'html');
+        block.querySelector('.code-btns').prepend(pb);
+        // auto-open preview
+        setTimeout(() => openPreview(code.innerText || code.textContent, 'html'), 100);
+      }
+    }
+  });
+
   wrap.querySelectorAll('.code-copy').forEach(btn => {
     btn.onclick = () => {
       navigator.clipboard.writeText(btn.closest('.code-block').querySelector('code').innerText).then(() => {
@@ -579,6 +704,7 @@ function formatMessage(text) {
         <div class="code-dots"><div class="code-dot r"></div><div class="code-dot y"></div><div class="code-dot g"></div></div>
         <span class="code-lang">${label}</span>
         <div class="code-btns">
+          <button class="code-edit-btn">✏ редактировать</button>
           <button class="code-copy">⎘ копировать</button>
           <button class="code-download">↓ скачать</button>
         </div>
@@ -671,27 +797,84 @@ async function sendMessage() {
     const resp = await fetch('https://text.pollinations.ai/openai', {
       method:'POST', headers:{'Content-Type':'application/json'},
       signal: abortController.signal,
-      body:JSON.stringify({ model:'openai', messages:msgs, max_tokens:4096, seed:Math.floor(Math.random()*99999) })
+      body:JSON.stringify({ model:'openai', messages:msgs, max_tokens:4096, stream:true, seed:Math.floor(Math.random()*99999) })
     });
     if (!resp.ok) throw new Error('HTTP ' + resp.status);
-    const data = await resp.json();
-    let reply = data.choices?.[0]?.message?.content || 'Нет ответа';
-    let finishReason = data.choices?.[0]?.finish_reason;
-    let attempts = 0;
-    while (finishReason === 'length' && attempts < 4) {
-      attempts++;
-      const r2 = await fetch('https://text.pollinations.ai/openai', {
-        method:'POST', headers:{'Content-Type':'application/json'},
-        body:JSON.stringify({ model:'openai', messages:[...msgs, {role:'assistant',content:reply}, {role:'user',content:'Continue exactly where you left off, no explanation.'}], max_tokens:4096, seed:Math.floor(Math.random()*99999) })
-      });
-      if (!r2.ok) break;
-      const d2 = await r2.json();
-      reply += d2.choices?.[0]?.message?.content || '';
-      finishReason = d2.choices?.[0]?.finish_reason;
-    }
+
+    // ── STREAMING ──
     removeTyping();
+    // Create streaming bubble
+    const streamWrap = document.createElement('div');
+    streamWrap.className = 'msg ai'; streamWrap.style.animation = 'none';
+    const streamAv = document.createElement('div'); streamAv.className = 'avatar ai'; streamAv.textContent = 'AI';
+    const streamBubble = document.createElement('div'); streamBubble.className = 'bubble stream-cursor';
+    streamWrap.appendChild(streamAv); streamWrap.appendChild(streamBubble);
+    document.getElementById('messages').querySelector('.empty-state')?.remove();
+    document.getElementById('messages').appendChild(streamWrap);
+    scrollBottom();
+
+    const reader = resp.body.getReader();
+    const decoder = new TextDecoder();
+    let reply = '';
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      const chunk = decoder.decode(value, { stream: true });
+      // Parse SSE lines
+      for (const line of chunk.split('\n')) {
+        if (!line.startsWith('data:')) continue;
+        const data = line.slice(5).trim();
+        if (data === '[DONE]') break;
+        try {
+          const json = JSON.parse(data);
+          const delta = json.choices?.[0]?.delta?.content || '';
+          if (delta) {
+            reply += delta;
+            streamBubble.innerHTML = formatMessage(reply);
+            scrollBottom();
+          }
+        } catch(e) {}
+      }
+    }
+
+    // Final render with full formatting + highlight
+    streamBubble.classList.remove('stream-cursor');
+    streamBubble.innerHTML = formatMessage(reply);
+    requestAnimationFrame(() => tryHighlight(streamBubble, 1));
+
+    // Add action buttons
+    const actions = document.createElement('div'); actions.className = 'msg-actions';
+    const copyBtn = document.createElement('button'); copyBtn.className = 'msg-action-btn'; copyBtn.textContent = '⎘ копировать';
+    copyBtn.onclick = () => { navigator.clipboard.writeText(reply).then(() => { copyBtn.textContent = '✓ скопировано'; setTimeout(() => copyBtn.textContent = '⎘ копировать', 1800); }); };
+    actions.appendChild(copyBtn); streamWrap.appendChild(actions);
+
+    // Wire code block buttons in streamed message
+    streamWrap.querySelectorAll('.code-copy').forEach(btn => {
+      btn.onclick = () => { navigator.clipboard.writeText(btn.closest('.code-block').querySelector('code').innerText).then(() => { btn.textContent = '✓'; setTimeout(() => btn.textContent = '⎘ копировать', 1800); }); };
+    });
+    streamWrap.querySelectorAll('.code-download').forEach(btn => {
+      btn.onclick = () => { const block=btn.closest('.code-block'); const code=block.querySelector('code').innerText; const lang=block.querySelector('.code-lang').textContent.trim(); const blob=new Blob([code],{type:'text/plain'}); const url=URL.createObjectURL(blob); const a=document.createElement('a'); a.href=url; a.download='code.'+langToExt(lang); a.click(); URL.revokeObjectURL(url); };
+    });
+    streamWrap.querySelectorAll('.code-edit-btn').forEach(btn => {
+      btn.onclick = () => { const block=btn.closest('.code-block'); const pre=block.querySelector('pre'); const isEditing=btn.classList.contains('editing'); if(!isEditing){pre.contentEditable='true';pre.focus();btn.classList.add('editing');btn.textContent='✓ готово';}else{pre.contentEditable='false';btn.classList.remove('editing');btn.textContent='✏ редактировать';const code=pre.querySelector('code');if(code){code.removeAttribute('data-highlighted');code.classList.remove('hljs');hljs.highlightElement(code);}}};
+    });
+    // Auto-preview HTML
+    streamWrap.querySelectorAll('.code-block').forEach(block => {
+      const lang = (block.querySelector('.code-lang').textContent||'').trim().toLowerCase();
+      if (lang === 'html') {
+        const code = block.querySelector('code');
+        if (code && !block.querySelector('.code-preview-btn')) {
+          const pb = document.createElement('button'); pb.className='code-edit-btn code-preview-btn'; pb.textContent='▶ превью';
+          pb.onclick = () => openPreview(code.innerText||code.textContent, 'html');
+          block.querySelector('.code-btns').prepend(pb);
+          setTimeout(() => openPreview(code.innerText||code.textContent, 'html'), 150);
+        }
+      }
+    });
+
     chat.messages.push({ role:'ai', content:reply });
-    save(); appendMsgEl('ai', reply, null, true);
+    save();
   } catch(e) {
     removeTyping();
     if (e.name === 'AbortError') {
@@ -795,6 +978,33 @@ function buildUserContent(text) {
 function buildDisplayContent(text) {
   if (pendingFiles.length === 0) return { display: text, attachments: [] };
   return { display: text, attachments: pendingFiles.map(f => ({ name:f.name, type:f.type, text:f.text })) };
+}
+
+// ── PREVIEW PANEL ──
+let previewCurrentCode = '';
+
+function openPreview(htmlCode, lang) {
+  previewCurrentCode = htmlCode;
+  const panel = document.getElementById('preview-panel');
+  document.getElementById('preview-title').textContent = lang === 'html' ? 'preview.html' : lang;
+  panel.classList.add('open');
+  // Set iframe content
+  const iframe = document.getElementById('preview-iframe');
+  iframe.srcdoc = htmlCode;
+  // Set code view
+  document.getElementById('preview-code').textContent = htmlCode;
+  switchPreviewTab('preview');
+}
+
+function closePreview() {
+  document.getElementById('preview-panel').classList.remove('open');
+}
+
+function switchPreviewTab(tab) {
+  document.getElementById('ptab-preview').classList.toggle('active', tab === 'preview');
+  document.getElementById('ptab-code').classList.toggle('active', tab === 'code');
+  document.getElementById('preview-iframe').style.display   = tab === 'preview' ? 'block' : 'none';
+  document.getElementById('preview-code').style.display     = tab === 'code'    ? 'block' : 'none';
 }
 
 function quickSend(t) { document.getElementById('user-input').value = t; sendMessage(); }
